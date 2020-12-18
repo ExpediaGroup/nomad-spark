@@ -31,7 +31,7 @@ private[spark] object NomadDryRun extends Logging {
 
     val backendConf = conf.get("spark.submit.deployMode") match {
       case "cluster" => NomadClusterModeConf(conf, parseArguments(argStrings)).backend
-      case _ => NomadClusterManagerConf(conf, None)
+      case _ => NomadClusterManagerConf(conf, submitMode = false, None)
     }
 
     val NewJob(job) = backendConf.jobDescriptor

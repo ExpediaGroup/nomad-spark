@@ -18,6 +18,8 @@
 package org.apache.spark.scheduler.cluster.nomad
 
 import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.util
 import java.util.Collections.singletonList
 
@@ -159,7 +161,8 @@ private[spark] abstract class SparkNomadTaskType(
             s"You must either set ${SPARK_DISTRIBUTION.key} or provide a ${JOB_TEMPLATE.key} " +
             s"""with a command provided for the task with meta spark.nomad.role = "$role"""")
       }
-      val (sparkHomeUrl, sparkArtifact) = asFileAndArtifact(jobConf, sparkDistributionUrl, true)
+      val sdUrlString = sparkDistributionUrl.toString
+      val (sparkHomeUrl, sparkArtifact) = asFileAndArtifact(jobConf, sdUrlString, true)
       sparkArtifact.foreach(task.addArtifacts(_))
       val sparkDir =
         if (sparkDistributionUrl.getScheme == "local") sparkHomeUrl.getPath
@@ -189,7 +192,7 @@ private[spark] abstract class SparkNomadTaskType(
   }
 
   protected def asFileIn(jobConf: SparkNomadJob.CommonConf, task: Task)(url: String): String = {
-    val (file, artifact) = asFileAndArtifact(jobConf, new URI(url), false)
+    val (file, artifact) = asFileAndArtifact(jobConf, url, false)
     artifact.foreach(task.addArtifacts(_))
     file.getScheme match {
       case "local" => file.getPath
@@ -273,9 +276,23 @@ private[spark] abstract class SparkNomadTaskType(
 
   private def asFileAndArtifact(
       jobConf: SparkNomadJob.CommonConf,
-      url: URI,
+      fullUrl: String,
       unarchive: Boolean
   ): (URI, Option[TaskArtifact]) = {
+    val dUrl = URLDecoder.decode(fullUrl.toString, StandardCharsets.UTF_8.name())
+    val singh = "https:/"
+    val rh = "https://"
+    val missingForwardSlashInHttps = dUrl != null && dUrl.contains(singh) && !dUrl.contains(rh)
+    val correctedUrl = if (missingForwardSlashInHttps) dUrl.replaceAll("https:/", "https://")
+                        else dUrl
+    /**
+     * This allows for you to add variables for basic auth in this format:
+     * ${NOMAD_META_USER}:${NOMAD_META_PASS}
+     * See Nomad docs on Variable Interpolation for more information
+     * https://www.nomadproject.io/docs/runtime/interpolation
+     * */
+    val cleanUrl = correctedUrl.replaceAll("\\$\\{[a-zA-Z_.]*\\}:\\$\\{[a-zA-Z_.]*\\}\\@", "")
+    val url = new URI(cleanUrl)
     url.getScheme match {
       case "local" => url -> None
       case null | "file" =>
@@ -292,7 +309,9 @@ private[spark] abstract class SparkNomadTaskType(
         val file = new URI("file://" + workDir + Utils.decodeFileNameInURI(url))
         val artifact = new TaskArtifact()
           .setRelativeDest(workDir)
-          .setGetterSource(url.toString)
+          .setGetterSource(correctedUrl)
+        // Nomad supports variables in the URL,
+        // so we use this version of the URL which still has the variables.
         if (!unarchive) {
           val options = Map("archive" -> "false")
           artifact.setGetterOptions(options.asJava)

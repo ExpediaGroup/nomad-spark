@@ -43,18 +43,24 @@ private[spark] class NomadJobManipulator(val nomad: NomadScalaApi, private var j
     register()
   }
 
+  private def maxRetries = 20
+
   @tailrec
-  final def updateJob(startIfNotYetRunning: Boolean)(modify: Job => Unit): Unit = {
+  final def updateJob(startIfNotYetRunning: Boolean, errorDelayS: Int = 1, retryIndex: Int = 1)
+                     (modify: Job => Unit): Unit = {
     modify(job)
     logDebug("Trying to update to " + job)
+
     try {
       register()
     } catch {
       case e: ErrorResponseException =>
+        if (retryIndex > maxRetries) throw new RuntimeException("exceeded max failure retries")
         log.warn(s"Updating job and retrying modification after error: $e")
+        Thread.sleep(errorDelayS * 1000)
         val response = nomad.jobs.info(jobId)
         job = response.getValue
-        updateJob(startIfNotYetRunning)(modify)
+        updateJob(startIfNotYetRunning, errorDelayS * 2, retryIndex + 1)(modify)
     }
   }
 

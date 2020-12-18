@@ -43,7 +43,7 @@ private[spark] class NomadClusterManager extends ExternalClusterManager with Log
       masterURL: String,
       scheduler: TaskScheduler): SchedulerBackend = {
 
-    val clusterManagerConf = NomadClusterManagerConf(sc.conf, None)
+    val clusterManagerConf = NomadClusterManagerConf(sc.conf, false, None)
 
     logInfo(s"Will access Nomad API at ${clusterManagerConf.nomadApi.getAddress}")
     val api = NomadScalaApi(clusterManagerConf.nomadApi)

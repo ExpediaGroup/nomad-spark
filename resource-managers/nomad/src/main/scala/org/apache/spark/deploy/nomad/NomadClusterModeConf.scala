@@ -72,7 +72,7 @@ private[spark] object NomadClusterModeConf {
 
   def apply(conf: SparkConf, command: ApplicationRunCommand): NomadClusterModeConf = {
 
-    val backendConf = NomadClusterManagerConf(conf, Some(command))
+    val backendConf = NomadClusterManagerConf(conf, submitMode = true, Some(command))
 
     // Fail fast if dynamic execution is enabled but the external shuffle service isn't
     // (otherwise we would create a Nomad job to run the driver, and it would fail to start)

@@ -59,6 +59,21 @@ private[spark] object NomadClusterManagerConf {
       .stringConf
       .createOptional
 
+  val SUBMIT_AUTH_TOKEN =
+    ConfigBuilder("spark.nomad.submit.authToken")
+      .doc("The Secret key of the Nomad auth token to use for the initial job submission " +
+        "to the Nomad Api" +
+        "(if not provided, falls back to spark.nomad.authToken)")
+      .stringConf
+      .createOptional
+
+  val DRIVER_AUTH_TOKEN =
+    ConfigBuilder("spark.nomad.driver.authToken")
+      .doc("The Secret key of the Nomad auth token to be used by the driver task" +
+        "(if not provided, falls back to spark.nomad.authToken)")
+      .stringConf
+      .createOptional
+
   val TLS_CA_CERT =
     ConfigBuilder("spark.nomad.tls.caCert")
       .doc("Path to a .pem file containing the certificate authority to validate the Nomad " +
@@ -152,12 +167,19 @@ private[spark] object NomadClusterManagerConf {
 
   def apply(
       conf: SparkConf,
+      submitMode: Boolean,
       command: Option[ApplicationRunCommand]
   ): NomadClusterManagerConf = {
 
     val nomadUrl = extractNomadUrl(conf)
 
-    val authToken = conf.get(AUTH_TOKEN)
+    var authToken = conf.get(AUTH_TOKEN)
+
+    if (submitMode) {
+      conf.get(SUBMIT_AUTH_TOKEN).foreach(t => authToken = Option.apply(t))
+    } else {
+      conf.get(DRIVER_AUTH_TOKEN).foreach(t => authToken = Option.apply(t))
+    }
 
     val jobConf = SparkNomadJob.CommonConf(conf)
 
