@@ -1,7 +1,7 @@
-name: Build Branch (PR)
+name: Build Branch (Full)
 
 on:
-  pull_request:
+  push:
     branches:
       "**"
 
@@ -39,6 +39,13 @@ jobs:
           java-version: '1.8'
       - name: Change to Scala ${{ matrix.scala }}
         run: ./dev/change-scala-version.sh ${{ matrix.scala }}
+      - name: Build Spark Common Modules
+        env:
+          MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
+          MAVEN_CLI_OPTS: "--no-transfer-progress"
+        run: |
+          mkdir -p ~/.m2
+          ./build/mvn $MAVEN_CLI_OPTS -pl :spark-sketch_2.11,:spark-kvstore_2.11,:spark-tags_2.11,:spark-network-common_2.11,:spark-network-shuffle_2.11,:spark-unsafe_2.11 clean install
       - name: Build Spark Launcher Module
         env:
           MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
@@ -48,12 +55,27 @@ jobs:
         env:
           MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
           MAVEN_CLI_OPTS: "--no-transfer-progress"
-        run: ./build/mvn $MAVEN_CLI_OPTS -pl :spark-core_2.11 -DwildcardSuites=org.apache.spark.deploy clean install
+        run: ./build/mvn $MAVEN_CLI_OPTS -pl :spark-core_2.11 clean install
+      - name: Build Spark SQL Modules
+        env:
+          MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
+          MAVEN_CLI_OPTS: "--no-transfer-progress"
+        run: ./build/mvn $MAVEN_CLI_OPTS -Phive -Phive-thriftserver -pl :spark-catalyst_2.11,:spark-sql_2.11 clean install
       - name: Build Spark Nomad Modules
         env:
           MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
           MAVEN_CLI_OPTS: "--no-transfer-progress"
-        run: ./build/mvn $MAVEN_CLI_OPTS -Pnomad -pl :spark-tags_2.11,:spark-nomad-test-apps_2.11,:spark-nomad_2.11 -DwildcardSuites=org.apache.spark.scheduler.cluster.nomad.ExecutorTaskTest,org.apache.spark.scheduler.cluster.nomad.DriverTaskTest clean install
+        run: ./build/mvn $MAVEN_CLI_OPTS -Pnomad -pl :spark-nomad-test-apps_2.11,:spark-nomad_2.11 -DwildcardSuites=org.apache.spark.scheduler.cluster.nomad.ExecutorTaskTest,org.apache.spark.scheduler.cluster.nomad.DriverTaskTest clean install
+      - name: Build Spark GraphX/MLLib/Streaming Modules
+        env:
+          MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
+          MAVEN_CLI_OPTS: "--no-transfer-progress"
+        run: ./build/mvn $MAVEN_CLI_OPTS -pl :spark-graphx_2.11,:spark-mllib_2.11,:spark-mllib-local_2.11,:spark-streaming_2.11 clean install
+      - name: Build Miscellaneous Spark Modules
+        env:
+          MAVEN_OPTS: "-Xmx3g -XX:ReservedCodeCacheSize=1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN"
+          MAVEN_CLI_OPTS: "--no-transfer-progress"
+        run: ./build/mvn $MAVEN_CLI_OPTS -pl :spark-tools_2.11,:spark-assembly_2.11,:spark-repl_2.11 clean install
   lint:
     runs-on: ubuntu-latest
     name: Checkstyle, licenses, dependencies
