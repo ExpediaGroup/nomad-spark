@@ -66,33 +66,6 @@ def determine_modules_for_files(filenames):
     return changed_modules
 
 
-def identify_changed_files_from_git_commits(patch_sha, target_branch=None, target_ref=None):
-    """
-    Given a git commit and target ref, use the set of files changed in the diff in order to
-    determine which modules' tests should be run.
-
-    >>> [x.name for x in determine_modules_for_files( \
-            identify_changed_files_from_git_commits("fc0a1475ef", target_ref="5da21f07"))]
-    ['graphx']
-    >>> 'root' in [x.name for x in determine_modules_for_files( \
-         identify_changed_files_from_git_commits("50a0496a43", target_ref="6765ef9"))]
-    True
-    """
-    if target_branch is None and target_ref is None:
-        raise AttributeError("must specify either target_branch or target_ref")
-    elif target_branch is not None and target_ref is not None:
-        raise AttributeError("must specify either target_branch or target_ref, not both")
-    if target_branch is not None:
-        diff_target = target_branch
-        run_cmd(['git', 'fetch', 'origin', str(target_branch+':'+target_branch)])
-    else:
-        diff_target = target_ref
-    raw_output = subprocess.check_output(['git', 'diff', '--name-only', patch_sha, diff_target],
-                                         universal_newlines=True)
-    # Remove any empty strings
-    return [f for f in raw_output.split('\n') if f]
-
-
 def setup_test_environ(environ):
     print("[info] Setup the following environment variables for tests: ")
     for (k, v) in environ.items():
@@ -652,39 +625,7 @@ def main():
     included_tags = []
     excluded_tags = []
     if should_only_test_modules:
-        # If we're running the tests in Github Actions, attempt to detect and test
-        # only the affected modules.
-        if test_env == "github_actions":
-            if os.environ["GITHUB_BASE_REF"] != "":
-                # Pull requests
-                changed_files = identify_changed_files_from_git_commits(
-                    os.environ["GITHUB_SHA"], target_branch=os.environ["GITHUB_BASE_REF"])
-            else:
-                # Build for each commit.
-                changed_files = identify_changed_files_from_git_commits(
-                    os.environ["GITHUB_SHA"], target_ref=os.environ["GITHUB_PREV_SHA"])
-
-            modules_to_test = determine_modules_to_test(
-                determine_modules_for_files(changed_files), deduplicated=False)
-
-            if modules.root not in modules_to_test:
-                # If root module is not found, only test the intersected modules.
-                # If root module is found, just run the modules as specified initially.
-                test_modules = list(set(modules_to_test).intersection(test_modules))
-
-        changed_modules = test_modules
-        if len(changed_modules) == 0:
-            print("[info] There are no modules to test, exiting without testing.")
-            return
-
-    # If we're running the tests in AMPLab Jenkins, calculate the diff from the targeted branch, and
-    # detect modules to test.
-    elif test_env == "amplab_jenkins" and os.environ.get("AMP_JENKINS_PRB"):
-        target_branch = os.environ["ghprbTargetBranch"]
-        changed_files = identify_changed_files_from_git_commits("HEAD", target_branch=target_branch)
-        changed_modules = determine_modules_for_files(changed_files)
-        test_modules = determine_modules_to_test(changed_modules)
-        excluded_tags = determine_tags_to_exclude(changed_modules)
+        changed_modules = [modules.root]
 
     # If there is no changed module found, tests all.
     if not changed_modules:
